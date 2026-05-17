@@ -15,5 +15,7 @@ build/
 .idea/
 .vscode/
 
-# Generated client configs (keep examples/server.conf and clientsTable)
-examples/*.conf
+# Generated client configs in examples (keep server.conf)
+examples/client-*.conf
+examples/*.iphone.conf
+examples/*.pc.conf
