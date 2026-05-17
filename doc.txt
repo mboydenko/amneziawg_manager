@@ -210,19 +210,19 @@ AMNEZIA clientsTable
 ПРИМЕРЫ
 -------
 
-1. Добавить клиента (локально, с Amnezia clientsTable в examples/):
+1. Добавить клиента:
 
-     awg-client add examples/server.conf \
+     awg-client add /opt/amnezia/wg0.conf \
        --endpoint 203.0.113.10:42919 \
        --name ivan
 
 2. Список клиентов:
 
-     awg-client list examples/server.conf
+     awg-client list /opt/amnezia/wg0.conf
 
 3. Удалить по имени:
 
-     awg-client delete examples/server.conf \
+     awg-client delete /opt/amnezia/wg0.conf \
        --name ivan \
        --remove-config
 
@@ -243,7 +243,7 @@ AMNEZIA clientsTable
 
 6. Только клиентский конфиг без изменения сервера:
 
-     awg-client add examples/server.conf \
+     awg-client add /opt/amnezia/wg0.conf \
        --endpoint 203.0.113.10:42919 \
        --name test \
        --no-update-server
@@ -278,9 +278,6 @@ AMNEZIA clientsTable
   • Резервный реестр wg0.clients.json не используется, если обнаружен clientsTable.
 
   • При конфликте имён или дублировании ключа add завершится с ошибкой.
-
-  • Примеры конфигов: каталог examples/ (server.conf, clientsTable, client-*.conf).
-
 
 КОДЫ ВОЗВРАТА
 --------------

@@ -14,8 +14,3 @@ build/
 *.swp
 .idea/
 .vscode/
-
-# Generated client configs in examples (keep server.conf)
-examples/client-*.conf
-examples/*.iphone.conf
-examples/*.pc.conf
