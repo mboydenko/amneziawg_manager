@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "amneziawg-config-generator"
+version = "0.1.0"
+description = "CLI to manage AmneziaWG clients (add, delete, list) via server config and Amnezia clientsTable"
+authors = ["Maksim Boydenko <boidenko.maxim@gmail.com>"]
+readme = "README.md"
+license = "MIT"
+packages = [{ include = "amneziawg_config_generator" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+cryptography = "^42.0.0"
+
+[tool.poetry.scripts]
+awg-client = "amneziawg_config_generator.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+dist/
+build/
+*.egg-info/
+.poetry/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Generated client configs (keep examples/server.conf and clientsTable)
+examples/*.conf

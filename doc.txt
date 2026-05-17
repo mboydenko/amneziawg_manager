@@ -1,0 +1,290 @@
+================================================================================
+  AmneziaWG Config Generator — документация
+  Пакет: amneziawg-config-generator
+  CLI: awg-client  (poetry run awg-client)
+================================================================================
+
+НАЗНАЧЕНИЕ
+----------
+Утилита для управления клиентами AmneziaWG / WireGuard по серверному конфигу:
+
+  • добавление клиента (ключи, peer в wg0.conf, клиентский .conf);
+  • удаление клиента;
+  • просмотр списка подключённых peer.
+
+Поддерживается:
+  • параметры обфускации AmneziaWG (Jc, Jmin, Jmax, S1–S4, H1–H4 и др.);
+  • реестр имён через Amnezia clientsTable;
+  • работа с AmneziaWG в Docker-контейнере.
+
+
+УСТАНОВКА
+--------
+  poetry install
+
+  # или из исходников:
+  poetry build && pip install dist/amneziawg_config_generator-*.whl
+
+Запуск:
+  poetry run awg-client --help
+  # после poetry install команда awg-client доступна в venv Poetry
+
+Зависимости:
+  • cryptography — генерация ключей, если на хосте нет wg;
+  • docker       — для режима Docker (команда docker в PATH);
+  • wg / awg     — опционально на хосте или только в контейнере.
+
+
+ОБЩИЙ СИНТАКСИС
+----------------
+  poetry run awg-client <команда> <путь_к_серверному_конфигу> [опции]
+  # или просто: awg-client ...  (если venv активирован)
+
+Команды:
+  add     — добавить клиента
+  delete  — удалить клиента
+  list    — список клиентов
+
+Старый формат (эквивалент add):
+  awg-client wg0.conf --endpoint HOST:PORT [опции]
+
+Справка:
+  awg-client --help
+  awg-client add --help
+  awg-client delete --help
+  awg-client list --help
+
+
+ФАЙЛЫ НА СЕРВЕРЕ
+-----------------
+Обычно в одной директории (например /etc/wireguard/ или каталог Amnezia в контейнере):
+
+  wg0.conf          — серверный конфиг ([Interface] + [Peer] для каждого клиента)
+  clientsTable      — JSON-реестр Amnezia с именами и статистикой (если есть)
+  wireguard_*.key   — ключи сервера (скрипт их не меняет)
+
+На хосте при локальной работе без Amnezia clientsTable может создаваться:
+
+  wg0.clients.json  — простой реестр имён (резервный режим)
+
+Клиентские конфиги по умолчанию сохраняются рядом с server_config (на хосте).
+
+
+ИМЕНА КЛИЕНТОВ
+---------------
+Режим Amnezia (clientsTable)
+  Включается автоматически, если рядом с серверным конфигом есть файл clientsTable,
+  или принудительно флагом --amnezia.
+
+  При добавлении с --name в clientsTable добавляется запись:
+
+    {
+        "clientId": "<публичный_ключ_клиента>",
+        "userData": {
+            "allowedIps": "10.8.1.N/32",
+            "clientName": "maxim.iphone",
+            "creationDate": "Sun May 17 13:56:13 2026"
+        }
+    }
+
+  Поля dataReceived, dataSent, latestHandshake заполняет сам AmneziaWG при работе
+  клиента — скрипт их не трогает.
+
+  Допустимы имена с точками, пробелами, скобками: "Admin [macOS 26.1]", "maxim.iphone".
+
+Режим без clientsTable
+  Используется файл <имя_конфига>.clients.json (например wg0.clients.json).
+  Имена: только латиница, цифры, _ и - (1–64 символа).
+
+При --name:
+  • создаётся файл <имя>.conf (или безопасное имя для Amnezia);
+  • в начало конфига пишется комментарий: # ClientName = <имя>.
+
+
+КОМАНДА: add
+-------------
+  awg-client add <server_config> --endpoint HOST:PORT [опции]
+
+Обязательно для клиентского конфига:
+  --endpoint HOST:PORT     Адрес и порт сервера для клиента.
+                           Альтернатива: переменные AWG_ENDPOINT или WG_ENDPOINT.
+
+Опции:
+  --name NAME              Имя клиента (реестр + имя файла).
+  --output PATH            Путь к выходному .conf (по умолчанию рядом с server_config).
+  --dns "1.1.1.1, 8.8.8.8" DNS в клиентском конфиге (по умолчанию 1.1.1.1, 1.0.0.1).
+  --allowed-ips LIST       AllowedIPs на стороне клиента (по умолчанию 0.0.0.0/0, ::/0).
+  --keepalive N            PersistentKeepalive (по умолчанию 25).
+  --no-update-server       Только создать клиентский .conf, не менять серверный конфиг.
+
+Что делает add:
+  1. Читает серверный конфиг.
+  2. Находит свободный IP в подсети Address сервера.
+  3. Генерирует ключи клиента (и preshared key).
+  4. Добавляет [Peer] в серверный конфиг (PublicKey, PresharedKey, AllowedIPs).
+  5. Записывает клиентский .conf (параметры AWG копируются с сервера).
+  6. При --name обновляет clientsTable или wg0.clients.json.
+
+
+КОМАНДА: delete
+----------------
+  awg-client delete <server_config> <один из идентификаторов> [опции]
+
+Идентификатор клиента (ровно один):
+  --ip 10.8.1.2              IP из AllowedIPs peer на сервере.
+  --public-key KEY           Публичный ключ из [Peer].
+  --name NAME                Имя из clientsTable / wg0.clients.json.
+  --client-config PATH       Путь к клиентскому .conf (ключ из PrivateKey).
+
+Опции:
+  --remove-config            Удалить также файл клиентского конфига
+                             (нужен --name или --client-config).
+  --no-update-server         Не менять серверный конфиг и clientsTable.
+
+Удаляет [Peer] из wg0.conf и запись из clientsTable / .clients.json.
+
+
+КОМАНДА: list
+--------------
+  awg-client list <server_config> [опции Docker / Amnezia]
+
+Выводит таблицу: номер, имя, IP, (при наличии — latestHandshake из clientsTable), PublicKey.
+Клиенты только в wg0.conf без записи в реестре отображаются с именем "-".
+
+
+DOCKER
+------
+AmneziaWG часто работает в контейнере. Скрипт поддерживает два сценария.
+
+Сценарий 1: конфиг смонтирован на хост (частый случай)
+  Файлы wg0.conf и clientsTable доступны на хосте, в контейнере — только awg/wg.
+
+    awg-client add /opt/amnezia/wg0.conf \
+      --docker-container amnezia-awg \
+      --endpoint vpn.example.com:42919 \
+      --name maxim.iphone \
+      --reload
+
+  --docker-container   Имя контейнера (или env AWG_DOCKER_CONTAINER).
+                       Ключи генерируются через awg/wg внутри контейнера.
+  Конфиг читается/пишется на хосте по указанному пути.
+
+Сценарий 2: конфиг только внутри контейнера
+  server_config на хосте — «якорь» для путей вывода; реальный конфиг в контейнере.
+
+    awg-client add ./data/wg0.conf \
+      --docker-container amnezia-awg \
+      --docker-config /etc/wireguard/wg0.conf \
+      --amnezia \
+      --endpoint vpn.example.com:42919 \
+      --name olga.ipad \
+      --reload
+
+  --docker-config PATH   Путь к wg0.conf внутри контейнера (чтение/запись через docker exec).
+  clientsTable ищется в той же директории (/etc/wireguard/clientsTable), если не задан --clients-table.
+
+Флаги Docker:
+  --docker-container NAME   Контейнер с AmneziaWG.
+  --docker-config PATH      Путь к серверному конфигу в контейнере.
+  --docker-wg-tool awg|wg   Принудительно awg или wg (по умолчанию автоопределение).
+  --docker-interface IFACE  Имя интерфейса для --reload (по умолчанию wg0 из имени файла).
+  --reload                  После add/delete: awg-quick/wg-quick down && up в контейнере.
+
+
+AMNEZIA clientsTable
+--------------------
+  --amnezia                 Всегда использовать clientsTable (создать при первом add).
+  --clients-table PATH      Явный путь к clientsTable (на хосте или в контейнере).
+
+Без флагов: если файл clientsTable есть рядом с серверным конфигом — режим Amnezia
+включается автоматически.
+
+
+ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ
+--------------------
+  AWG_ENDPOINT           Endpoint для add (альтернатива --endpoint).
+  WG_ENDPOINT            То же.
+  AWG_DOCKER_CONTAINER   Имя Docker-контейнера (альтернатива --docker-container).
+
+
+ПРИМЕРЫ
+-------
+
+1. Добавить клиента (локально, с Amnezia clientsTable в examples/):
+
+     awg-client add examples/server.conf \
+       --endpoint 203.0.113.10:42919 \
+       --name ivan
+
+2. Список клиентов:
+
+     awg-client list examples/server.conf
+
+3. Удалить по имени:
+
+     awg-client delete examples/server.conf \
+       --name ivan \
+       --remove-config
+
+4. Docker + clientsTable + перезагрузка интерфейса:
+
+     export AWG_DOCKER_CONTAINER=amnezia-awg
+     export AWG_ENDPOINT=vpn.example.com:42919
+
+     awg-client add /opt/amnezia/wg0.conf \
+       --name "anton.iphone" \
+       --reload
+
+5. Удалить по IP:
+
+     awg-client delete /opt/amnezia/wg0.conf \
+       --ip 10.8.1.7 \
+       --reload
+
+6. Только клиентский конфиг без изменения сервера:
+
+     awg-client add examples/server.conf \
+       --endpoint 203.0.113.10:42919 \
+       --name test \
+       --no-update-server
+
+
+СТРУКТУРА КЛИЕНТСКОГО КОНФИГА
+------------------------------
+  [Interface]
+  Address = 10.8.1.N/32
+  PrivateKey = ...
+  DNS = 1.1.1.1, 1.0.0.1
+  Jc, Jmin, Jmax, S1, S2, H1–H4 ...   (копируются с сервера)
+
+  [Peer]
+  PublicKey = <публичный_ключ_сервера>
+  PresharedKey = ...
+  AllowedIPs = 0.0.0.0/0, ::/0
+  Endpoint = HOST:PORT
+  PersistentKeepalive = 25
+
+Файл импортируется в приложение AmneziaWG на устройстве клиента.
+
+
+ПРИМЕЧАНИЯ
+----------
+  • После изменения wg0.conf на работающем сервере нужно применить конфигурацию.
+    С Docker используйте --reload или вручную в контейнере:
+      awg-quick down wg0 && awg-quick up wg0
+
+  • Скрипт не управляет firewall, маршрутизацией и установкой AmneziaWG.
+
+  • Резервный реестр wg0.clients.json не используется, если обнаружен clientsTable.
+
+  • При конфликте имён или дублировании ключа add завершится с ошибкой.
+
+  • Примеры конфигов: каталог examples/ (server.conf, clientsTable, client-*.conf).
+
+
+КОДЫ ВОЗВРАТА
+--------------
+  0 — успех
+  1 — ошибка (файл не найден, неверные аргументы, ошибка docker/wg и т.д.)
+
+================================================================================
