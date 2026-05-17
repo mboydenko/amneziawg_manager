@@ -1,7 +1,7 @@
 ================================================================================
   AmneziaWG Config Generator — документация
-  Пакет: amneziawg-config-generator
-  CLI: awg-client  (poetry run awg-client)
+  Пакет: amneziawg-manager-cli
+  CLI: amneziawg-manager-cli  (poetry run amneziawg-manager-cli)
 ================================================================================
 
 НАЗНАЧЕНИЕ
@@ -23,11 +23,11 @@
   poetry install
 
   # или из исходников:
-  poetry build && pip install dist/amneziawg_config_generator-*.whl
+  poetry build && pip install dist/amneziawg_manager_cli-*.whl
 
 Запуск:
-  poetry run awg-client --help
-  # после poetry install команда awg-client доступна в venv Poetry
+  poetry run amneziawg-manager-cli --help
+  # после poetry install команда amneziawg-manager-cli доступна в venv Poetry
 
 Зависимости:
   • cryptography — генерация ключей, если на хосте нет wg;
@@ -37,8 +37,8 @@
 
 ОБЩИЙ СИНТАКСИС
 ----------------
-  poetry run awg-client <команда> <путь_к_серверному_конфигу> [опции]
-  # или просто: awg-client ...  (если venv активирован)
+  poetry run amneziawg-manager-cli <команда> <путь_к_серверному_конфигу> [опции]
+  # или просто: amneziawg-manager-cli ...  (если venv активирован)
 
 Команды:
   add     — добавить клиента
@@ -46,13 +46,13 @@
   list    — список клиентов
 
 Старый формат (эквивалент add):
-  awg-client wg0.conf --endpoint HOST:PORT [опции]
+  amneziawg-manager-cli wg0.conf --endpoint HOST:PORT [опции]
 
 Справка:
-  awg-client --help
-  awg-client add --help
-  awg-client delete --help
-  awg-client list --help
+  amneziawg-manager-cli --help
+  amneziawg-manager-cli add --help
+  amneziawg-manager-cli delete --help
+  amneziawg-manager-cli list --help
 
 
 ФАЙЛЫ НА СЕРВЕРЕ
@@ -103,7 +103,7 @@
 
 КОМАНДА: add
 -------------
-  awg-client add <server_config> --endpoint HOST:PORT [опции]
+  amneziawg-manager-cli add <server_config> --endpoint HOST:PORT [опции]
 
 Обязательно для клиентского конфига:
   --endpoint HOST:PORT     Адрес и порт сервера для клиента.
@@ -128,7 +128,7 @@
 
 КОМАНДА: delete
 ----------------
-  awg-client delete <server_config> <один из идентификаторов> [опции]
+  amneziawg-manager-cli delete <server_config> <один из идентификаторов> [опции]
 
 Идентификатор клиента (ровно один):
   --ip 10.8.1.2              IP из AllowedIPs peer на сервере.
@@ -146,7 +146,7 @@
 
 КОМАНДА: list
 --------------
-  awg-client list <server_config> [опции Docker / Amnezia]
+  amneziawg-manager-cli list <server_config> [опции Docker / Amnezia]
 
 Выводит таблицу: номер, имя, IP, (при наличии — latestHandshake из clientsTable), PublicKey.
 Клиенты только в wg0.conf без записи в реестре отображаются с именем "-".
@@ -159,7 +159,7 @@ AmneziaWG часто работает в контейнере. Скрипт по
 Сценарий 1: конфиг смонтирован на хост (частый случай)
   Файлы wg0.conf и clientsTable доступны на хосте, в контейнере — только awg/wg.
 
-    awg-client add /opt/amnezia/wg0.conf \
+    amneziawg-manager-cli add /opt/amnezia/wg0.conf \
       --docker-container amnezia-awg \
       --endpoint vpn.example.com:42919 \
       --name maxim.iphone \
@@ -172,7 +172,7 @@ AmneziaWG часто работает в контейнере. Скрипт по
 Сценарий 2: конфиг только внутри контейнера
   server_config на хосте — «якорь» для путей вывода; реальный конфиг в контейнере.
 
-    awg-client add ./data/wg0.conf \
+    amneziawg-manager-cli add ./data/wg0.conf \
       --docker-container amnezia-awg \
       --docker-config /etc/wireguard/wg0.conf \
       --amnezia \
@@ -212,17 +212,17 @@ AMNEZIA clientsTable
 
 1. Добавить клиента:
 
-     awg-client add /opt/amnezia/wg0.conf \
+     amneziawg-manager-cli add /opt/amnezia/wg0.conf \
        --endpoint 203.0.113.10:42919 \
        --name ivan
 
 2. Список клиентов:
 
-     awg-client list /opt/amnezia/wg0.conf
+     amneziawg-manager-cli list /opt/amnezia/wg0.conf
 
 3. Удалить по имени:
 
-     awg-client delete /opt/amnezia/wg0.conf \
+     amneziawg-manager-cli delete /opt/amnezia/wg0.conf \
        --name ivan \
        --remove-config
 
@@ -231,19 +231,19 @@ AMNEZIA clientsTable
      export AWG_DOCKER_CONTAINER=amnezia-awg
      export AWG_ENDPOINT=vpn.example.com:42919
 
-     awg-client add /opt/amnezia/wg0.conf \
+     amneziawg-manager-cli add /opt/amnezia/wg0.conf \
        --name "anton.iphone" \
        --reload
 
 5. Удалить по IP:
 
-     awg-client delete /opt/amnezia/wg0.conf \
+     amneziawg-manager-cli delete /opt/amnezia/wg0.conf \
        --ip 10.8.1.7 \
        --reload
 
 6. Только клиентский конфиг без изменения сервера:
 
-     awg-client add /opt/amnezia/wg0.conf \
+     amneziawg-manager-cli add /opt/amnezia/wg0.conf \
        --endpoint 203.0.113.10:42919 \
        --name test \
        --no-update-server
