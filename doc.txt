@@ -154,38 +154,21 @@
 
 DOCKER
 ------
-AmneziaWG часто работает в контейнере. Скрипт поддерживает два сценария.
+AmneziaWG часто работает в контейнере. Если указан --docker-container, `server_config`
+интерпретируется как путь внутри контейнера, и скрипт читает/пишет серверный
+конфиг и clientsTable через docker exec.
 
-Сценарий 1: конфиг смонтирован на хост (частый случай)
-  Файлы wg0.conf и clientsTable доступны на хосте, в контейнере — только awg/wg.
+  amneziawg-manager-cli add /etc/wireguard/wg0.conf \
+    --docker-container amnezia-awg \
+    --endpoint vpn.example.com:42919 \
+    --name maxim.iphone \
+    --reload
 
-    amneziawg-manager-cli add /opt/amnezia/wg0.conf \
-      --docker-container amnezia-awg \
-      --endpoint vpn.example.com:42919 \
-      --name maxim.iphone \
-      --reload
-
-  --docker-container   Имя контейнера (или env AWG_DOCKER_CONTAINER).
-                       Ключи генерируются через awg/wg внутри контейнера.
-  Конфиг читается/пишется на хосте по указанному пути.
-
-Сценарий 2: конфиг только внутри контейнера
-  server_config на хосте — «якорь» для путей вывода; реальный конфиг в контейнере.
-
-    amneziawg-manager-cli add ./data/wg0.conf \
-      --docker-container amnezia-awg \
-      --docker-config /etc/wireguard/wg0.conf \
-      --amnezia \
-      --endpoint vpn.example.com:42919 \
-      --name olga.ipad \
-      --reload
-
-  --docker-config PATH   Путь к wg0.conf внутри контейнера (чтение/запись через docker exec).
-  clientsTable ищется в той же директории (/etc/wireguard/clientsTable), если не задан --clients-table.
+  --docker-container NAME   Контейнер с AmneziaWG (или env AWG_DOCKER_CONTAINER).
+                            Ключи генерируются через awg/wg внутри контейнера.
 
 Флаги Docker:
   --docker-container NAME   Контейнер с AmneziaWG.
-  --docker-config PATH      Путь к серверному конфигу в контейнере.
   --docker-wg-tool awg|wg   Принудительно awg или wg (по умолчанию автоопределение).
   --docker-interface IFACE  Имя интерфейса для --reload (по умолчанию wg0 из имени файла).
   --reload                  После add/delete: awg-quick/wg-quick down && up в контейнере.

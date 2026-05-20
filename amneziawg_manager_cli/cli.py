@@ -71,7 +71,6 @@ class ServerConfig:
 @dataclass
 class RuntimeOptions:
     docker_container: str | None = None
-    docker_config_path: Path | None = None
     docker_wg_tool: str | None = None
     reload: bool = False
     docker_interface: str | None = None
@@ -84,20 +83,15 @@ class RuntimeOptions:
         container = getattr(args, "docker_container", None) or os.environ.get(
             "AWG_DOCKER_CONTAINER"
         )
-        docker_config = getattr(args, "docker_config", None)
         clients_table = getattr(args, "clients_table", None)
         return cls(
             docker_container=container,
-            docker_config_path=Path(docker_config) if docker_config else None,
             docker_wg_tool=getattr(args, "docker_wg_tool", None),
             reload=getattr(args, "reload", False),
             docker_interface=getattr(args, "docker_interface", None),
             clients_table_path=Path(clients_table) if clients_table else None,
             amnezia=getattr(args, "amnezia", False),
         )
-
-    def uses_docker_config(self) -> bool:
-        return bool(self.docker_container and self.docker_config_path)
 
     def uses_docker_wg(self) -> bool:
         return bool(self.docker_container)
@@ -220,45 +214,41 @@ def _docker_write_file(container: str, path: Path, content: str) -> None:
     )
 
 
-def read_server_config(server_path: Path, runtime: RuntimeOptions) -> str:
-    if runtime.uses_docker_config():
+def read_server_config(config_path: Path, runtime: RuntimeOptions) -> str:
+    if runtime.uses_docker_wg():
         assert runtime.docker_container
-        assert runtime.docker_config_path
-        return _docker_read_file(runtime.docker_container, runtime.docker_config_path)
-    return server_path.read_text(encoding="utf-8")
+        return _docker_read_file(runtime.docker_container, config_path)
+    return config_path.read_text(encoding="utf-8")
 
 
 def write_server_config(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     content: str,
 ) -> None:
-    if runtime.uses_docker_config():
+    if runtime.uses_docker_wg():
         assert runtime.docker_container
-        assert runtime.docker_config_path
-        _docker_write_file(runtime.docker_container, runtime.docker_config_path, content)
+        _docker_write_file(runtime.docker_container, config_path, content)
         return
-    server_path.write_text(content, encoding="utf-8")
+    config_path.write_text(content, encoding="utf-8")
 
 
-def _config_data_dir(server_path: Path, runtime: RuntimeOptions) -> Path:
-    if runtime.docker_config_path:
-        return runtime.docker_config_path.parent
-    return server_path.parent
+def _config_data_dir(config_path: Path, runtime: RuntimeOptions) -> Path:
+    return config_path.parent
 
 
-def resolve_clients_table_path(server_path: Path, runtime: RuntimeOptions) -> Path:
+def resolve_clients_table_path(config_path: Path, runtime: RuntimeOptions) -> Path:
     if runtime.clients_table_path:
         return runtime.clients_table_path
-    return _config_data_dir(server_path, runtime) / CLIENTS_TABLE_FILENAME
+    return _config_data_dir(config_path, runtime) / CLIENTS_TABLE_FILENAME
 
 
 def read_sidecar_file(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     path: Path,
 ) -> str | None:
-    if runtime.uses_docker_config():
+    if runtime.uses_docker_wg():
         assert runtime.docker_container
         try:
             return _docker_read_file(runtime.docker_container, path)
@@ -270,30 +260,29 @@ def read_sidecar_file(
 
 
 def write_sidecar_file(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     path: Path,
     content: str,
 ) -> None:
-    if runtime.uses_docker_config():
+    if runtime.uses_docker_wg():
         assert runtime.docker_container
         _docker_write_file(runtime.docker_container, path, content)
         return
     path.write_text(content, encoding="utf-8")
 
 
-def uses_amnezia_clients_table(server_path: Path, runtime: RuntimeOptions) -> bool:
+def uses_amnezia_clients_table(config_path: Path, runtime: RuntimeOptions) -> bool:
     if runtime.amnezia:
         return True
-    table_path = resolve_clients_table_path(server_path, runtime)
-    return read_sidecar_file(server_path, runtime, table_path) is not None
+    table_path = resolve_clients_table_path(config_path, runtime)
+    return read_sidecar_file(config_path, runtime, table_path) is not None
 
 
-def reload_docker_interface(server_path: Path, runtime: RuntimeOptions) -> None:
+def reload_docker_interface(config_path: Path, runtime: RuntimeOptions) -> None:
     if not runtime.reload or not runtime.docker_container:
         return
 
-    config_path = runtime.docker_config_path or server_path
     interface = runtime.docker_interface or config_path.stem
     container = runtime.docker_container
     assert container
@@ -546,12 +535,12 @@ def client_config_filename(name: str) -> str:
     return f"{safe}.conf"
 
 
-def clients_registry_path(server_path: Path) -> Path:
-    return server_path.parent / f"{server_path.stem}.clients.json"
+def clients_registry_path(config_path: Path) -> Path:
+    return config_path.parent / f"{config_path.stem}.clients.json"
 
 
-def load_clients_registry(server_path: Path) -> dict[str, dict]:
-    path = clients_registry_path(server_path)
+def load_clients_registry(config_path: Path) -> dict[str, dict]:
+    path = clients_registry_path(config_path)
     if not path.exists():
         return {"clients": {}}
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -560,8 +549,8 @@ def load_clients_registry(server_path: Path) -> dict[str, dict]:
     return data
 
 
-def save_clients_registry(server_path: Path, registry: dict[str, dict]) -> None:
-    path = clients_registry_path(server_path)
+def save_clients_registry(config_path: Path, registry: dict[str, dict]) -> None:
+    path = clients_registry_path(config_path)
     path.write_text(
         json.dumps(registry, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -569,11 +558,11 @@ def save_clients_registry(server_path: Path, registry: dict[str, dict]) -> None:
 
 
 def load_amnezia_clients_table(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
 ) -> list[dict]:
-    table_path = resolve_clients_table_path(server_path, runtime)
-    raw = read_sidecar_file(server_path, runtime, table_path)
+    table_path = resolve_clients_table_path(config_path, runtime)
+    raw = read_sidecar_file(config_path, runtime, table_path)
     if raw is None:
         return []
     data = json.loads(raw)
@@ -583,13 +572,13 @@ def load_amnezia_clients_table(
 
 
 def save_amnezia_clients_table(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     entries: list[dict],
 ) -> None:
-    table_path = resolve_clients_table_path(server_path, runtime)
+    table_path = resolve_clients_table_path(config_path, runtime)
     content = json.dumps(entries, indent=4, ensure_ascii=False) + "\n"
-    write_sidecar_file(server_path, runtime, table_path, content)
+    write_sidecar_file(config_path, runtime, table_path, content)
 
 
 def _amnezia_user_data(entry: dict) -> dict:
@@ -600,16 +589,16 @@ def _amnezia_user_data(entry: dict) -> dict:
 
 
 def register_client(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     *,
     name: str,
     public_key: str,
     ip: str,
-    config_path: Path,
+    client_config_path: Path,
 ) -> None:
-    if uses_amnezia_clients_table(server_path, runtime):
-        table = load_amnezia_clients_table(server_path, runtime)
+    if uses_amnezia_clients_table(config_path, runtime):
+        table = load_amnezia_clients_table(config_path, runtime)
         for entry in table:
             user_data = _amnezia_user_data(entry)
             if user_data.get("clientName") == name:
@@ -629,10 +618,10 @@ def register_client(
                 },
             }
         )
-        save_amnezia_clients_table(server_path, runtime, table)
+        save_amnezia_clients_table(config_path, runtime, table)
         return
 
-    registry = load_clients_registry(server_path)
+    registry = load_clients_registry(config_path)
     if name in registry["clients"]:
         raise ValueError(f"Client name already exists: {name}")
 
@@ -645,18 +634,18 @@ def register_client(
     registry["clients"][name] = {
         "public_key": public_key,
         "ip": ip,
-        "config": config_path.name,
+        "config": client_config_path.name,
     }
-    save_clients_registry(server_path, registry)
+    save_clients_registry(config_path, registry)
 
 
 def unregister_client_by_public_key(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     public_key: str,
 ) -> str | None:
-    if uses_amnezia_clients_table(server_path, runtime):
-        table = load_amnezia_clients_table(server_path, runtime)
+    if uses_amnezia_clients_table(config_path, runtime):
+        table = load_amnezia_clients_table(config_path, runtime)
         removed_name: str | None = None
         kept: list[dict] = []
         for entry in table:
@@ -665,30 +654,30 @@ def unregister_client_by_public_key(
                 continue
             kept.append(entry)
         if removed_name is not None:
-            save_amnezia_clients_table(server_path, runtime, kept)
+            save_amnezia_clients_table(config_path, runtime, kept)
         return removed_name
 
-    registry = load_clients_registry(server_path)
+    registry = load_clients_registry(config_path)
     for name, entry in list(registry["clients"].items()):
         if entry.get("public_key") == public_key:
             del registry["clients"][name]
-            save_clients_registry(server_path, registry)
+            save_clients_registry(config_path, registry)
             return name
     return None
 
 
 def lookup_client_name(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     public_key: str,
 ) -> str:
-    if uses_amnezia_clients_table(server_path, runtime):
-        for entry in load_amnezia_clients_table(server_path, runtime):
+    if uses_amnezia_clients_table(config_path, runtime):
+        for entry in load_amnezia_clients_table(config_path, runtime):
             if entry.get("clientId") == public_key:
                 return _amnezia_user_data(entry).get("clientName", "")
         return ""
 
-    registry = load_clients_registry(server_path)
+    registry = load_clients_registry(config_path)
     for name, entry in registry["clients"].items():
         if entry.get("public_key") == public_key:
             return name
@@ -696,16 +685,16 @@ def lookup_client_name(
 
 
 def lookup_client_public_key(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     name: str,
 ) -> str:
-    amnezia = uses_amnezia_clients_table(server_path, runtime)
+    amnezia = uses_amnezia_clients_table(config_path, runtime)
     name = validate_client_name(name, amnezia=amnezia)
 
     if amnezia:
         matches: list[str] = []
-        for entry in load_amnezia_clients_table(server_path, runtime):
+        for entry in load_amnezia_clients_table(config_path, runtime):
             if _amnezia_user_data(entry).get("clientName") == name:
                 client_id = entry.get("clientId")
                 if client_id:
@@ -719,7 +708,7 @@ def lookup_client_public_key(
             )
         return matches[0]
 
-    registry = load_clients_registry(server_path)
+    registry = load_clients_registry(config_path)
     entry = registry["clients"].get(name)
     if not entry:
         raise ValueError(f"Client name not found: {name}")
@@ -730,34 +719,34 @@ def lookup_client_public_key(
 
 
 def lookup_client_config_path(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
     name: str,
 ) -> Path | None:
-    amnezia = uses_amnezia_clients_table(server_path, runtime)
+    amnezia = uses_amnezia_clients_table(config_path, runtime)
     name = validate_client_name(name, amnezia=amnezia)
 
     if amnezia:
-        return server_path.parent / client_config_filename(name)
+        return config_path.parent / client_config_filename(name)
 
-    registry = load_clients_registry(server_path)
+    registry = load_clients_registry(config_path)
     entry = registry["clients"].get(name)
     if not entry:
         return None
     config_name = entry.get("config")
     if not config_name:
         return None
-    return server_path.parent / config_name
+    return config_path.parent / config_name
 
 
 def amnezia_clients_table_index(
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
 ) -> dict[str, dict]:
     index: dict[str, dict] = {}
-    if not uses_amnezia_clients_table(server_path, runtime):
+    if not uses_amnezia_clients_table(config_path, runtime):
         return index
-    for entry in load_amnezia_clients_table(server_path, runtime):
+    for entry in load_amnezia_clients_table(config_path, runtime):
         client_id = entry.get("clientId")
         if client_id:
             index[client_id] = _amnezia_user_data(entry)
@@ -777,21 +766,21 @@ def prepend_client_name_comment(config_text: str, name: str) -> str:
 
 
 def default_output_path(
-    server_path: Path,
+    config_path: Path,
     client_name: str | None,
     runtime: RuntimeOptions,
 ) -> Path:
     if client_name:
-        if uses_amnezia_clients_table(server_path, runtime):
-            return server_path.parent / client_config_filename(client_name)
-        return server_path.parent / f"{client_name}.conf"
-    return server_path.parent / f"client-{_next_client_suffix(server_path)}.conf"
+        if uses_amnezia_clients_table(config_path, runtime):
+            return config_path.parent / client_config_filename(client_name)
+        return config_path.parent / f"{client_name}.conf"
+    return config_path.parent / f"client-{_next_client_suffix(config_path)}.conf"
 
 
-def _next_client_suffix(server_path: Path) -> int:
+def _next_client_suffix(config_path: Path) -> int:
     pattern = re.compile(r"client-(\d+)\.conf$")
     max_index = 0
-    for path in server_path.parent.glob("client-*.conf"):
+    for path in config_path.parent.glob("client-*.conf"):
         match = pattern.match(path.name)
         if match:
             max_index = max(max_index, int(match.group(1)))
@@ -852,17 +841,17 @@ def find_peer_index(
 
 def list_clients(
     config: ServerConfig,
-    server_path: Path,
+    config_path: Path,
     runtime: RuntimeOptions,
 ) -> list[tuple[int, str, str, str, str]]:
-    amnezia_index = amnezia_clients_table_index(server_path, runtime)
+    amnezia_index = amnezia_clients_table_index(config_path, runtime)
     clients: list[tuple[int, str, str, str, str]] = []
     for index, peer in enumerate(config.peers, start=1):
         public_key = peer.options.get("PublicKey", "?")
         ip = peer_host_ip(peer) or "?"
         user_data = amnezia_index.get(public_key, {})
         name = user_data.get("clientName") or lookup_client_name(
-            server_path,
+            config_path,
             runtime,
             public_key,
         )
@@ -872,7 +861,7 @@ def list_clients(
 
 
 def delete_client(
-    server_config_path: Path,
+    config_path: Path,
     *,
     public_key: str | None = None,
     ip: str | None = None,
@@ -892,18 +881,18 @@ def delete_client(
             resolved_name = read_client_name_from_config(client_config)
     elif resolved_name:
         public_key = lookup_client_public_key(
-            server_config_path,
+            config_path,
             runtime,
             resolved_name,
         )
         if remove_config and config_to_remove is None:
             config_to_remove = lookup_client_config_path(
-                server_config_path,
+                config_path,
                 runtime,
                 resolved_name,
             )
 
-    text = read_server_config(server_config_path, runtime)
+    text = read_server_config(config_path, runtime)
     config = parse_config(text)
     peer_index = find_peer_index(config, public_key=public_key, ip=ip)
     removed_peer = config.peers.pop(peer_index)
@@ -911,13 +900,13 @@ def delete_client(
 
     if update_server:
         write_server_config(
-            server_config_path,
+            config_path,
             runtime,
             serialize_config(server_config_to_sections(config)),
         )
 
     removed_name = unregister_client_by_public_key(
-        server_config_path,
+        config_path,
         runtime,
         removed_public_key,
     )
@@ -931,7 +920,7 @@ def delete_client(
 
 
 def create_client(
-    server_config_path: Path,
+    config_path: Path,
     *,
     endpoint: str | None = None,
     dns: str = "1.1.1.1, 1.0.0.1",
@@ -943,11 +932,11 @@ def create_client(
     runtime: RuntimeOptions | None = None,
 ) -> Path:
     runtime = runtime or RuntimeOptions()
-    amnezia = uses_amnezia_clients_table(server_config_path, runtime)
+    amnezia = uses_amnezia_clients_table(config_path, runtime)
     if client_name is not None:
         client_name = validate_client_name(client_name, amnezia=amnezia)
 
-    text = read_server_config(server_config_path, runtime)
+    text = read_server_config(config_path, runtime)
     config = parse_config(text)
 
     server_private_key = config.interface.options.get("PrivateKey")
@@ -973,7 +962,7 @@ def create_client(
             )
         )
         write_server_config(
-            server_config_path,
+            config_path,
             runtime,
             serialize_config(server_config_to_sections(config)),
         )
@@ -991,7 +980,7 @@ def create_client(
     )
 
     output_path = output or default_output_path(
-        server_config_path,
+        config_path,
         client_name,
         runtime,
     )
@@ -1001,12 +990,12 @@ def create_client(
 
     if client_name and update_server:
         register_client(
-            server_config_path,
+            config_path,
             runtime,
             name=client_name,
             public_key=client_public_key,
             ip=client_ip,
-            config_path=output_path,
+            client_config_path=output_path,
         )
 
     return output_path
@@ -1016,7 +1005,7 @@ def _add_server_config_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "server_config",
         type=Path,
-        help="Path to server config on host (bind mount) or anchor path for outputs",
+        help="Path to server config on host (bind mount) or, with --docker-container, inside the container",
     )
 
 
@@ -1026,14 +1015,7 @@ def _add_docker_args(parser: argparse.ArgumentParser) -> None:
         "--docker-container",
         metavar="NAME",
         help="Docker container with AmneziaWG (env: AWG_DOCKER_CONTAINER). "
-        "Uses awg/wg inside the container for key generation.",
-    )
-    group.add_argument(
-        "--docker-config",
-        metavar="PATH",
-        type=Path,
-        help="Server config path inside the container (read/write via docker exec). "
-        "Use when the config is not available as a local file.",
+        "If provided, server config path is interpreted inside the container and files are read/written there.",
     )
     group.add_argument(
         "--docker-wg-tool",
@@ -1064,24 +1046,12 @@ def _add_docker_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _resolve_server_path(path: Path, runtime: RuntimeOptions) -> Path | None:
-    resolved = path.expanduser().resolve()
+    resolved = path.expanduser()
 
-    if runtime.docker_config_path and not runtime.docker_container:
-        print(
-            "Error: --docker-config requires --docker-container",
-            file=sys.stderr,
-        )
-        return None
-
-    if runtime.uses_docker_config():
-        if not resolved.parent.is_dir():
-            print(
-                f"Error: parent directory does not exist: {resolved.parent}",
-                file=sys.stderr,
-            )
-            return None
+    if runtime.uses_docker_wg():
         return resolved
 
+    resolved = resolved.resolve()
     if not resolved.is_file():
         print(f"Error: server config not found: {resolved}", file=sys.stderr)
         return None
@@ -1189,17 +1159,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _server_config_label(server_path: Path, runtime: RuntimeOptions) -> str:
-    if runtime.uses_docker_config():
-        return f"{runtime.docker_container}:{runtime.docker_config_path}"
-    return str(server_path)
+def _server_config_label(config_path: Path, runtime: RuntimeOptions) -> str:
+    if runtime.uses_docker_wg():
+        return f"{runtime.docker_container}:{config_path}"
+    return str(config_path)
 
 
-def _run_add(server_path: Path, args: argparse.Namespace) -> int:
+def _run_add(config_path: Path, args: argparse.Namespace) -> int:
     runtime = RuntimeOptions.from_args(args)
     try:
         output_path = create_client(
-            server_path,
+            config_path,
             endpoint=args.endpoint,
             dns=args.dns,
             allowed_ips=args.allowed_ips,
@@ -1210,7 +1180,7 @@ def _run_add(server_path: Path, args: argparse.Namespace) -> int:
             runtime=runtime,
         )
         if not args.no_update_server:
-            reload_docker_interface(server_path, runtime)
+            reload_docker_interface(config_path, runtime)
     except (ValueError, subprocess.CalledProcessError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -1219,13 +1189,13 @@ def _run_add(server_path: Path, args: argparse.Namespace) -> int:
     if args.name:
         print(f"Client name: {args.name}")
     if not args.no_update_server:
-        print(f"Server config updated: {_server_config_label(server_path, runtime)}")
+        print(f"Server config updated: {_server_config_label(config_path, runtime)}")
     if runtime.reload and runtime.docker_container:
         print(f"Interface reloaded in container: {runtime.docker_container}")
     return 0
 
 
-def _run_delete(server_path: Path, args: argparse.Namespace) -> int:
+def _run_delete(config_path: Path, args: argparse.Namespace) -> int:
     runtime = RuntimeOptions.from_args(args)
     if args.remove_config and not args.client_config and not args.name:
         print("Error: --remove-config requires --name or --client-config", file=sys.stderr)
@@ -1238,7 +1208,7 @@ def _run_delete(server_path: Path, args: argparse.Namespace) -> int:
 
     try:
         removed_peer, removed_name, deleted_config = delete_client(
-            server_path,
+            config_path,
             public_key=args.public_key,
             ip=args.ip,
             name=args.name,
@@ -1248,7 +1218,7 @@ def _run_delete(server_path: Path, args: argparse.Namespace) -> int:
             runtime=runtime,
         )
         if not args.no_update_server:
-            reload_docker_interface(server_path, runtime)
+            reload_docker_interface(config_path, runtime)
     except (ValueError, subprocess.CalledProcessError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -1258,7 +1228,7 @@ def _run_delete(server_path: Path, args: argparse.Namespace) -> int:
     name_part = f", Name={removed_name}" if removed_name else ""
     print(f"Removed client: IP={ip}, PublicKey={public_key}{name_part}")
     if not args.no_update_server:
-        print(f"Server config updated: {_server_config_label(server_path, runtime)}")
+        print(f"Server config updated: {_server_config_label(config_path, runtime)}")
     if runtime.reload and runtime.docker_container and not args.no_update_server:
         print(f"Interface reloaded in container: {runtime.docker_container}")
     if deleted_config:
@@ -1266,11 +1236,11 @@ def _run_delete(server_path: Path, args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_list(server_path: Path, args: argparse.Namespace) -> int:
+def _run_list(config_path: Path, args: argparse.Namespace) -> int:
     runtime = RuntimeOptions.from_args(args)
     try:
-        config = parse_config(read_server_config(server_path, runtime))
-        clients = list_clients(config, server_path, runtime)
+        config = parse_config(read_server_config(config_path, runtime))
+        clients = list_clients(config, config_path, runtime)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -1302,23 +1272,23 @@ def main(argv: list[str] | None = None) -> int:
     runtime = RuntimeOptions.from_args(args)
 
     if args.command in ("add", "delete", "list"):
-        server_path = _resolve_server_path(args.server_config, runtime)
-        if server_path is None:
+        config_path = _resolve_server_path(args.server_config, runtime)
+        if config_path is None:
             return 1
         if args.command == "add":
-            return _run_add(server_path, args)
+            return _run_add(config_path, args)
         if args.command == "delete":
-            return _run_delete(server_path, args)
-        return _run_list(server_path, args)
+            return _run_delete(config_path, args)
+        return _run_list(config_path, args)
 
     if args.legacy_server_config is None:
         build_parser().print_help()
         return 1
 
-    server_path = _resolve_server_path(args.legacy_server_config, runtime)
-    if server_path is None:
+    config_path = _resolve_server_path(args.legacy_server_config, runtime)
+    if config_path is None:
         return 1
-    return _run_add(server_path, args)
+    return _run_add(config_path, args)
 
 
 if __name__ == "__main__":
