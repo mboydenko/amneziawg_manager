@@ -1,0 +1,24 @@
+[
+    {
+        "clientId": "ADMIN_PUBLIC_KEY",
+        "userData": {
+            "allowedIps": "10.8.1.1/32",
+            "clientName": "Admin [macOS 26.1]",
+            "creationDate": "Tue Dec 23 02:17:49 2025",
+            "dataReceived": "193.93 GiB",
+            "dataSent": "12.10 GiB",
+            "latestHandshake": "5s ago"
+        }
+    },
+    {
+        "clientId": "CLIENT_1_PUBLIC_KEY",
+        "userData": {
+            "allowedIps": "10.8.1.2/32",
+            "clientName": "client.1",
+            "creationDate": "Tue Dec 23 02:26:04 2025",
+            "dataReceived": "171.52 GiB",
+            "dataSent": "17.81 GiB",
+            "latestHandshake": "1m, 59s ago"
+        }
+    }
+]
