@@ -1,20 +1,19 @@
 [tool.poetry]
-name = "amneziawg-manager-cli"
+name = "amneziawg-manager"
 version = "0.1.0"
 description = "CLI to manage AmneziaWG clients (add, delete, list) via server config and Amnezia clientsTable"
 authors = ["Maksim Boydenko <boidenko.maxim@gmail.com>"]
 readme = "README.md"
 license = "MIT"
-packages = [{ include = "amneziawg_manager_cli" }]
+packages = [{ include = "amneziawg_manager" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"
 cryptography = "^42.0.0"
+pydantic = "^2.13.4"
+pytest-mock = "^3.15.1"
 
-[tool.poetry.scripts]
-amneziawg-manager-cli = "amneziawg_manager_cli.cli:main"
-
-[tool.poetry.dev-dependencies]
+[tool.group.dev.dependencies]
 pytest = "^8.0.0"
 
 [build-system]

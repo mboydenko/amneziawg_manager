@@ -1,6 +1,6 @@
 [
     {
-        "clientId": "ADMIN_PUBLIC_KEY",
+        "clientId": "admin_public_key",
         "userData": {
             "allowedIps": "10.8.1.1/32",
             "clientName": "Admin [macOS 26.1]",
@@ -11,7 +11,7 @@
         }
     },
     {
-        "clientId": "CLIENT_1_PUBLIC_KEY",
+        "clientId": "client_1_public_key",
         "userData": {
             "allowedIps": "10.8.1.2/32",
             "clientName": "client.1",
