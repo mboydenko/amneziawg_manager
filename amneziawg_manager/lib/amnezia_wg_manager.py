@@ -176,11 +176,14 @@ class AmneziaWgManager:
     def get_clients(self) -> list[dict]: # type: ignore
         clients = []
         server_config = self.read_server_config()
+        clients_info = self.read_clients_table().root
         for peer in server_config.peers:
             data = {}
             data['PublicKey'] = peer.PublicKey
             data['AllowedIps'] = peer.AllowedIPs
-            if info := self._get_client_info(peer.PublicKey):
+            for info in clients_info:
+                if info.client_id != peer.PresharedKey:
+                    continue
                 data['clientName'] = info.client_name
                 data['creationDate'] = info.creation_date
                 data['dataReceived'] = info.data_received
