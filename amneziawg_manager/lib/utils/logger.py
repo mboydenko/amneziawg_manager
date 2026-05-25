@@ -60,12 +60,12 @@ def _func_dec(log: str | None = None, level: str = 'debug',  # type: ignore
             _log(f'"{func}"', level=level)
 
             if log_params:
-                _log(f'"{func}" parameters:\nArgs: {log_params}\nKwargs: {kwargs})', level=level)
+                _log(f'"{func}" parameters:\nArgs: {log_params}\nKwargs: {kwargs}', level=level)
 
             result = func(*args, **kwargs)
 
             if log_result:
-                _log(f'"{func}" result: {result}', level=level)
+                _log(f'"{func}" result:\n{result}', level=level)
 
             return result # type: ignore
         return _wrapper # type: ignore
