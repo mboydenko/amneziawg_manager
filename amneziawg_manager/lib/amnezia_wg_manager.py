@@ -182,7 +182,7 @@ class AmneziaWgManager:
             data['PublicKey'] = peer.PublicKey
             data['AllowedIps'] = peer.AllowedIPs
             for info in clients_info:
-                if info.client_id != peer.PresharedKey:
+                if info.client_id != peer.PublicKey:
                     continue
                 data['clientName'] = info.client_name
                 data['creationDate'] = info.creation_date
