@@ -40,10 +40,11 @@ class _Client:
         if not self._client:
             raise RuntimeError('SSH connection is not opened')
         _, stdout, stderr = self._client.exec_command(cmd)
+        stdout, stderr = stdout.read().decode('utf-8'), stderr.read().decode('utf-8')
         code = 0 if not stderr else 1
         return CmdResult(
-            stderr=stderr.read().decode('utf-8'),
-            stdout=stdout.read().decode('utf-8'),
+            stderr=stderr,
+            stdout=stdout,
             return_code=code
         )
 
