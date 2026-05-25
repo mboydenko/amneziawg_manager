@@ -4,22 +4,22 @@ import functools
 from loguru import logger
 
 def _deb(log: str):
-    logger.debug(f'\n{log}')
+    logger.debug(log)
 
 def _info(log: str):
-    logger.info(f'\n{log}')
+    logger.info(log)
 
 def _err(log: str):
-    logger.error(f'\n{log}')
+    logger.error(log)
 
 def _trace(log: str):
-    logger.trace(f'\n{log}')
+    logger.trace(log)
 
 def _warning(log: str):
-    logger.warning(f'\n{log}')
+    logger.warning(log)
 
 def _critical(log: str):
-    logger.critical(f'\n{log}')
+    logger.critical(log)
     
 
 def _log(log: str, level: str):
@@ -57,8 +57,7 @@ def _func_dec(log: str | None = None, level: str = 'debug',  # type: ignore
             if log:
                 _log(log, level=level)
 
-            _log(f"Function: {func.__name__}:", level=level)
-
+            msg = f"Function: {func.__name__}:\n"
             if log_params:
                 _log(f'Parameters of {func.__name__}:\n Args: {args}\nKwargs: {kwargs})', level=level)
 
