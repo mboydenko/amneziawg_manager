@@ -18,6 +18,7 @@ class _Client:
     @_logger.log_function()
     def connect(self):
         self._client = paramiko.SSHClient()
+        self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self._client.connect(self._host, self._port, username=self._username, password=self._password)
     
     @_logger.log_function()
