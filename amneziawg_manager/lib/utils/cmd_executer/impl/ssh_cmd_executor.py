@@ -61,7 +61,7 @@ class SshCmdExecutor(CmdExecutor):
                      password=self._connection.password,
             ) as client:
             if self._docker_container:
-                cmd = f'docker exec {self._docker_container} {cmd}'
+                cmd = f'docker exec {self._docker_container} sh -c "{cmd}"'
             res = client.exec(cmd) 
         if check_result:
             if res.return_code != 0:
