@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from amneziawg_manager.lib.utils.cmd_executer.models.cmd_result import CmdResult
+from amneziawg_manager.lib.utils.cmd_executer.models import CmdResult
 
 class CmdExecutor(ABC):
 

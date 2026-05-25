@@ -5,3 +5,8 @@ class CmdResult(BaseModel):
     stderr: str
     return_code: int
 
+class SshConnection(BaseModel):
+    host: str
+    port: int
+    username: str
+    password: str

@@ -1,5 +1,6 @@
 from abc import ABC
 from typing import ClassVar
+import json
 
 from pydantic import BaseModel, model_serializer, model_validator, RootModel
 
@@ -134,7 +135,10 @@ class ClientsTableItem(BaseModel):
 
     @model_validator(mode='before')
     @classmethod
-    def flatten_user_data(cls, data: dict[str, str | int]) -> dict[str, str | int]:
+    def flatten_user_data(cls, data: dict[str, str | int] | str) -> dict[str, str | int] | object:
+        if isinstance(data, str):
+            data = json.loads(data)
+        
         if not isinstance(data, dict): # type: ignore
             return data
         
