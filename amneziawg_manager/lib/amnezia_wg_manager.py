@@ -233,5 +233,8 @@ class AmneziaWgManager:
             public_key = self.cmd_executor.exec_cmd(f'wg pubkey < {tmp_dir}/private.key').stdout
             preshared_key = self.cmd_executor.exec_cmd('wg wg genpsk').stdout
             return (public_key, private_key, preshared_key)
+        except Exception as e:
+            _logger.error(str(e.__traceback__))
+            raise e
         finally:
             self.cmd_executor.exec_cmd(f'rm -r {tmp_dir}')
