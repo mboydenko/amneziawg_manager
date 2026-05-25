@@ -62,11 +62,14 @@ def _func_dec(log: str | None = None, level: str = 'debug',  # type: ignore
             if log_params:
                 _log(f'"{func}" parameters:\nArgs: {args}\nKwargs: {kwargs}', level=level)
 
-            result = func(*args, **kwargs)
-
-            if log_result:
-                _log(f'"{func}" result:\n{result}', level=level)
-
+            try:
+                result = func(*args, **kwargs)
+                if log_result:
+                    _log(f'"{func}" result:\n{result}', level=level)
+            except Exception as e:
+                _err(f'{e}')
+                raise e
+    
             return result # type: ignore
         return _wrapper # type: ignore
     
