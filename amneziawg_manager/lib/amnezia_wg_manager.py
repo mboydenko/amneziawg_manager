@@ -228,7 +228,7 @@ class AmneziaWgManager:
         tmp_dir = f"~/{datetime.now().strftime('%Y%m%d%H%M%S')}_tmp"
         self.cmd_executor.exec_cmd(f'mkdir {tmp_dir}')
         try:
-            self.cmd_executor.exec_cmd(f'wg genkey > {tmp_dir}/private.key')
+            self.cmd_executor.exec_cmd(f'umask 077 && wg genkey > {tmp_dir}/private.key')
             private_key = self.cmd_executor.exec_cmd(f'cat {tmp_dir}/private.key').stdout
             _logger.debug(f'Private key: {private_key}')
             public_key = self.cmd_executor.exec_cmd(f'wg pubkey < {tmp_dir}/private.key').stdout
