@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import ClassVar
+from typing import ClassVar, Optional
 import json
 
 from pydantic import BaseModel, model_serializer, model_validator, RootModel
@@ -126,12 +126,12 @@ class ClientConfig(BaseModel):
 
 class ClientsTableItem(BaseModel):
     client_id: str
-    allowed_ips: str
+    allowed_ips: Optional[str] = None
     client_name: str
     creation_date: str
-    data_received: str
-    data_sent: str
-    latest_handshake: str
+    data_received: Optional[str] = None
+    data_sent: Optional[str] = None
+    latest_handshake: Optional[str] = None
 
     @model_validator(mode='before')
     @classmethod
@@ -145,7 +145,7 @@ class ClientsTableItem(BaseModel):
         if 'userData' not in data:
             return data
 
-        user_data = data.get('userData')
+        user_data: dict = data.get('userData')
 
         return {
             'client_id': data.get('clientId'), # type: ignore
@@ -162,12 +162,12 @@ class ClientsTableItem(BaseModel):
         return {
             'clientId': self.client_id,
             'userData': {
-                'allowedIps': self.allowed_ips,
+                'allowedIps': self.allowed_ips or "",
                 'clientName': self.client_name,
                 'creationDate': self.creation_date,
-                'dataReceived': self.data_received,
-                'dataSent': self.data_sent,
-                'latestHandshake': self.latest_handshake,
+                'dataReceived': self.data_received or "",
+                'dataSent': self.data_sent or "",
+                'latestHandshake': self.latest_handshake or "",
             }
         } # type: ignore
 
