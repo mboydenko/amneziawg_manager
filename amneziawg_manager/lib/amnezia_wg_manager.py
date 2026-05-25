@@ -226,7 +226,7 @@ class AmneziaWgManager:
         Return tuple: public, privet, preshared 
         """
         tmp_dir = f"~/{datetime.now().strftime('%Y%m%d%H%M%S')}_tmp"
-        self.cmd_executor.exec_cmd(f'mkdir ${tmp_dir}')
+        self.cmd_executor.exec_cmd(f'mkdir {tmp_dir}')
         try:
             self.cmd_executor.exec_cmd(f'wg genkey > {tmp_dir}/private.key')
             private_key = self.cmd_executor.exec_cmd(f'cat {tmp_dir}/private.key').stdout
