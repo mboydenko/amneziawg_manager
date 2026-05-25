@@ -2,11 +2,16 @@ import json
 from datetime import datetime
 
 from amneziawg_manager.lib.utils.cmd_executer.protocols.cmd_executor import CmdExecutor
+from amneziawg_manager.lib.utils.logger import Logger
 
 from amneziawg_manager.lib.models import (
     ServerConfig, ClientsTable, ClientConfig, ClientInterface, 
     ClientConfigPeer, ClientsTableItem, ServerConfigPeer
 )
+
+
+_logger = Logger('AmneziaWgManager')
+
 
 _AMNEZIA_WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 _AMNEZIA_MONTHS = (
@@ -38,27 +43,33 @@ class AmneziaWgManager:
         self.address = address
         self.restart_command = restart_command
 
+    @_logger.log_function()
     def read_server_config(self) -> ServerConfig:
         cmd = f'cat {self.config_path}'
         res = self.cmd_executor.exec_cmd(cmd)
         return ServerConfig.from_str(res.stdout)
 
+    @_logger.log_function()
     def write_server_config(self, config: ServerConfig):
         cmd = f'echo "{config.to_str()}" > {self.config_path}'
         self.cmd_executor.exec_cmd(cmd)
 
+    @_logger.log_function()
     def restart_server(self):
         self.cmd_executor.exec_cmd(self.restart_command)
 
+    @_logger.log_function()
     def read_clients_table(self) -> ClientsTable:
         cmd = f'cat {self.clients_table_path}'
         result = self.cmd_executor.exec_cmd(cmd)
         return ClientsTable(json.loads(result.stdout))
 
+    @_logger.log_function()
     def write_clients_table(self, clients_table: ClientsTable):
         cmd = f'echo \'{json.dumps(clients_table.model_dump())}\' > {self.clients_table_path}'
         self.cmd_executor.exec_cmd(cmd)
         
+    @_logger.log_function()
     def add_client(self, 
                    client_name: str, 
                    dns: str | None = None, 
@@ -128,6 +139,7 @@ class AmneziaWgManager:
         self.restart_server()
         return client_config
 
+    @_logger.log_function()
     def delete_client(self, client_name_or_public_key: str) -> None:
         public_key = ""
         if self._does_client_with_name_exist(client_name_or_public_key):
@@ -160,6 +172,7 @@ class AmneziaWgManager:
 
         self.restart_server()
 
+    @_logger.log_function()
     def get_clients(self) -> list[dict]: # type: ignore
         clients = []
         server_config = self.read_server_config()
@@ -176,30 +189,35 @@ class AmneziaWgManager:
             clients.append(data) # type: ignore
         return clients # type: ignore
 
+    @_logger.log_function()
     def _does_client_with_name_exist(self, client_name: str) -> bool:
         for client in self.read_clients_table().root:
                 if client.client_name == client_name:
                     return True
         return False
 
+    @_logger.log_function()
     def _get_client_public_key_by_name(self, client_name: str) -> str:
         for client in self.read_clients_table().root:
             if client.client_name == client_name:
                 return client.client_id
         raise RuntimeError(f'Client "{client_name}" not found')
 
+    @_logger.log_function()
     def _does_client_with_key_exist(self, public_key: str) -> bool:
         for peer in self.read_server_config().peers:
             if peer.PublicKey == public_key:
                 return True
         return False
 
+    @_logger.log_function()
     def _get_client_info(self, public_key: str) -> ClientsTableItem | None:
         for item in self.read_clients_table().root:
             if item.client_id == public_key:
                 return item
         return None
 
+    @_logger.log_function()
     def _gen_keys(self) -> tuple[str,str,str]:
         """
         Return tuple: public, privet, preshared 
