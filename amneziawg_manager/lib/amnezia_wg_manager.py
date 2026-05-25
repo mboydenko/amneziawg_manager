@@ -233,7 +233,7 @@ class AmneziaWgManager:
             _logger.debug(f'Private key: {private_key}')
             public_key = self.cmd_executor.exec_cmd(f'wg pubkey < {tmp_dir}/private.key').stdout
             _logger.debug(f'Public key: {private_key}')
-            preshared_key = self.cmd_executor.exec_cmd('wg wg genpsk').stdout
+            preshared_key = self.cmd_executor.exec_cmd('wg genpsk').stdout
             _logger.debug(f'Preshared key: {private_key}')
             return (public_key, private_key, preshared_key)
         except Exception as e:
