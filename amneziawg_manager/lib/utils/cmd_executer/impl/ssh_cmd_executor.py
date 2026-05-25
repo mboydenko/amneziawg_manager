@@ -15,13 +15,13 @@ class _Client:
         self._password = password
         self._client = None
 
-    @_logger.log_function()
+    @_logger.log_function(level='trace')
     def connect(self):
         self._client = paramiko.SSHClient()
         self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self._client.connect(self._host, self._port, username=self._username, password=self._password)
     
-    @_logger.log_function()
+    @_logger.log_function(level='trace')
     def close(self):
         if not self._client:
             return
@@ -35,7 +35,7 @@ class _Client:
     def __exit__(self, exc_type, exc, tb):
         self.close()
     
-    @_logger.log_function()
+    @_logger.log_function(level='trace')
     def exec(self, cmd: str) -> CmdResult:
         if not self._client:
             raise RuntimeError('SSH connection is not opened')
