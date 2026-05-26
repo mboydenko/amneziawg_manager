@@ -1,4 +1,3 @@
-from typing import Any
 import functools
 
 from loguru import logger
@@ -20,7 +19,6 @@ def _warning(log: str):
 
 def _critical(log: str):
     logger.critical(log)
-    
 
 def _log(log: str, level: str):
     if level == 'debug':
@@ -81,15 +79,13 @@ class _logger:
     def __init__(self, log: str, level: str = 'debug') -> None:
         self._log = log
         self._level = level
+        _log(self._log, level=self._level)
 
     def __enter__(self):
-        self.__call__()
+        pass
         
     def __exit__(self, *args, **kwargs): # type: ignore
         pass
-            
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        _log(self._log, level=self._level)
 
 class Logger:
 
@@ -100,22 +96,22 @@ class Logger:
     def log(self, log: str, level: str):
         if self._title:
             log = f"{self._title}: {log}"
-        return _logger(log, level)
+        _logger(log, level)
 
     def info(self, log: str):
-        return self.log(log, 'info')
+        self.log(log, 'info')
     
     def warning(self, log: str):
-        return self.log(log, 'warning')
+        self.log(log, 'warning')
     
     def error(self, log: str):
-        return self.log(log, 'error')
+        self.log(log, 'error')
     
     def trace(self, log: str):
-        return self.log(log, 'trace')
+        self.log(log, 'trace')
     
     def debug(self, log: str):
-        return self.log(log, 'debug')
+        self.log(log, 'debug')
 
     @property
     def log_function(self):

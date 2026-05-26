@@ -51,8 +51,10 @@ class AmneziaWgManager:
 
     @_logger.log_function()
     def write_server_config(self, config: ServerConfig):
-        cmd = f'echo "{config.to_str()}" > {self.config_path}'
-        self.cmd_executor.exec_cmd(cmd)
+        self.cmd_executor.exec_cmd(
+            cmd=f'cat > {self.config_path}',
+            stdin=config.to_str()
+        )
 
     @_logger.log_function()
     def restart_server(self):
@@ -66,8 +68,10 @@ class AmneziaWgManager:
 
     @_logger.log_function()
     def write_clients_table(self, clients_table: ClientsTable):
-        cmd = f'echo \'{json.dumps(clients_table.model_dump())}\' > {self.clients_table_path}'
-        self.cmd_executor.exec_cmd(cmd)
+        self.cmd_executor.exec_cmd(
+            cmd=f'cat > {self.clients_table_path}',
+            stdin=json.dumps(clients_table.model_dump())
+        )
         
     @_logger.log_function()
     def add_client(self, 

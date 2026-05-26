@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 import shutil
+import subprocess
+from dataclasses import dataclass
 
 import pytest
 from pytest_mock import MockerFixture
@@ -9,7 +11,13 @@ from amneziawg_manager import AmneziaWgManager
 from amneziawg_manager import CmdExecutorFactory
 
 ADDRESS = "231.123.23.1"
-CLIENT_KEYS = ('CLIENT_PUBLIC_KEY', 'CLIENT_PRIVATE_KEY', 'CLIENT_PRESHARED_KEY') 
+CLIENT_KEYS = ('CLIENT_P''UBLIC_KEY', 'CLIENT_PRIVATE_KEY', 'CLIENT_PRESHARED_KEY') 
+
+@dataclass
+class DockerContainer:
+    name: str
+    conf_path: str
+    client_table: str
 
 @pytest.fixture
 def tmp_path():
@@ -43,13 +51,76 @@ def tmp_client_cfg_without_dns(tmp_path: Path):
         shutil.copyfile(Path(current_dir) / 'resources' /  'client_cfg_to_string'  / 'cfg_without_dns.conf', tmp_path / 'cfg_without_dns.conf')
         return tmp_path / 'cfg_without_dns.conf'
 
+
 @pytest.fixture
-def amnezia_wg_mgr(mocker: MockerFixture, tmp_server_conf: Path, tmp_clients_table: Path) -> AmneziaWgManager:
+def docker_container(request: pytest.FixtureRequest, tmp_clients_table: Path, tmp_server_conf: Path):
+    container: str | None = request.config.getoption('--docker-container')
+    if not container:
+        yield
+        return
+    
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "-dit",
+            "--rm",
+            "--name",
+            container,
+            "ubuntu:latest",
+            "tail",
+            "-f",
+            "/dev/null",
+        ],
+        check=True,
+    )
+
+    clients_table_file_in_docker = '/tmp/clients_table_tmp';
+    serve_conf_file_in_docker = '/tmp/test_conf.conf';
+
+    subprocess.run(
+        [
+            "docker",
+            "cp",
+            str(tmp_clients_table),
+            f"{container}:{clients_table_file_in_docker}",
+        ],
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            "docker",
+            "cp",
+            str(tmp_server_conf),
+            f"{container}:{serve_conf_file_in_docker}",
+        ],
+        check=True,
+    )
+
+    yield DockerContainer(
+        name=container,
+        conf_path=serve_conf_file_in_docker,
+        client_table=clients_table_file_in_docker
+    )
+
+    subprocess.run(
+        ["docker", "rm", "-f", container],
+        check=True,
+    )
+
+@pytest.fixture
+def amnezia_wg_mgr(request: pytest.FixtureRequest,
+                   mocker: MockerFixture, 
+                   tmp_server_conf: Path, 
+                   tmp_clients_table: Path,
+                   docker_container: DockerContainer | None,
+    ) -> AmneziaWgManager:
     mgr = AmneziaWgManager(
-        config_path=str(tmp_server_conf),
-        clients_table_path=str(tmp_clients_table),
+        config_path=docker_container.conf_path if docker_container else str(tmp_server_conf),
+        clients_table_path=docker_container.client_table if docker_container else str(tmp_clients_table),
         address=ADDRESS,
-        cmd_executer=CmdExecutorFactory().create_cmd_execptor(),
+        cmd_executer=CmdExecutorFactory().create_cmd_execptor(docker_container=docker_container.name if docker_container else None),
         restart_command='echo restart'
     )
     mocker.patch.object(mgr, AmneziaWgManager._gen_keys.__name__, return_value=CLIENT_KEYS) # type: ignore
