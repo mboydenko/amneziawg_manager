@@ -30,7 +30,7 @@ class WgSection(ABC,BaseModel):
             if value is None:
                 continue
             config_str += f'{key} = {value}\n'
-        return config_str.replace('\n\n', '\n')
+        return config_str
 
 class InterfaceBaseModel(WgSection):
 
