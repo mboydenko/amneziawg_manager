@@ -9,9 +9,10 @@ from pytest_mock import MockerFixture
 
 from amneziawg_manager import AmneziaWgManager
 from amneziawg_manager import CmdExecutorFactory
+from amneziawg_manager.lib.models import ClientsTable, ClientsTableItem, ServerConfigPeer
 
 ADDRESS = "231.123.23.1"
-CLIENT_KEYS = ('CLIENT_P''UBLIC_KEY', 'CLIENT_PRIVATE_KEY', 'CLIENT_PRESHARED_KEY') 
+CLIENT_KEYS = ('CLIENT_PUBLIC_KEY', 'CLIENT_PRIVATE_KEY', 'CLIENT_PRESHARED_KEY') 
 
 @dataclass
 class DockerContainer:
@@ -152,6 +153,11 @@ def test_read_server_config(amnezia_wg_mgr: AmneziaWgManager):
 def test_write_server_config(amnezia_wg_mgr: AmneziaWgManager):
     config = amnezia_wg_mgr.read_server_config()
     config.interface.ListenPort = 12345
+
+    new_peer = ServerConfigPeer(PublicKey=CLIENT_KEYS[0],
+                                PresharedKey=CLIENT_KEYS[2],
+                                AllowedIPs='10.10.10.10/32')
+    config.peers.append(new_peer)
     amnezia_wg_mgr.write_server_config(config)
     config = amnezia_wg_mgr.read_server_config()
     assert config.interface.ListenPort == 12345
@@ -166,13 +172,16 @@ def test_write_server_config(amnezia_wg_mgr: AmneziaWgManager):
     assert config.interface.H2 == 7
     assert config.interface.H3 == 8
     assert config.interface.H4 == 9
-    assert len(config.peers) == 2
+    assert len(config.peers) == 3
     assert config.peers[0].PublicKey == 'admin_public_key'
     assert config.peers[0].PresharedKey == 'admin_preshared_key'
     assert config.peers[0].AllowedIPs == '10.8.1.1/32'
     assert config.peers[1].PublicKey == 'client_1_public_key'
     assert config.peers[1].PresharedKey == 'client_1_preshared_key'
     assert config.peers[1].AllowedIPs == '10.8.1.2/32'
+    assert config.peers[2].AllowedIPs == '10.10.10.10/32'
+    assert config.peers[2].PresharedKey == CLIENT_KEYS[2]
+    assert config.peers[2].PublicKey == CLIENT_KEYS[0]
 
 def test_read_clients_table(amnezia_wg_mgr: AmneziaWgManager):
     clients_table = amnezia_wg_mgr.read_clients_table()
@@ -196,14 +205,27 @@ def test_read_clients_table(amnezia_wg_mgr: AmneziaWgManager):
 
 def test_write_clients_table(amnezia_wg_mgr: AmneziaWgManager):
     clients_table = amnezia_wg_mgr.read_clients_table()
+    
     clients_table.root[0].client_id = 'admin_public_key_changed'
     clients_table.root[0].data_sent = '12.15 GiB'
     clients_table.root[1].client_id = 'client_1_public_key_changed'
     clients_table.root[1].data_sent = '12.20 GiB'
+
+    added_user = ClientsTableItem(
+        client_id=CLIENT_KEYS[0],
+        allowed_ips='10.10.10.12/32',
+        client_name='added_client',
+        creation_date='Creation date text',
+        latest_handshake='Latest handshake text',
+        data_received='data received text',
+        data_sent='data sent text'
+    )
+    clients_table.root.append(added_user)
+
     amnezia_wg_mgr.write_clients_table(clients_table=clients_table)
     clients_table = amnezia_wg_mgr.read_clients_table()
 
-    assert len(clients_table.root) == 2
+    assert len(clients_table.root) == 3
 
     assert clients_table.root[0].client_id == 'admin_public_key_changed'
     assert clients_table.root[0].allowed_ips == '10.8.1.1/32'
@@ -220,6 +242,14 @@ def test_write_clients_table(amnezia_wg_mgr: AmneziaWgManager):
     assert clients_table.root[1].data_received == '171.52 GiB'
     assert clients_table.root[1].data_sent == '12.20 GiB'
     assert clients_table.root[1].latest_handshake == '1m, 59s ago'
+
+    assert clients_table.root[2].client_id == CLIENT_KEYS[0]
+    assert clients_table.root[2].allowed_ips == '10.10.10.12/32'
+    assert clients_table.root[2].client_name == 'added_client'
+    assert clients_table.root[2].creation_date == 'Creation date text'
+    assert clients_table.root[2].data_received == 'data received text'
+    assert clients_table.root[2].data_sent == 'data sent text'
+    assert clients_table.root[2].latest_handshake == 'Latest handshake text'
 
 def test_add_client(amnezia_wg_mgr: AmneziaWgManager):
     new_clients: list[tuple[str,str|None,int, str]] = [
@@ -318,5 +348,3 @@ def test_client_config_to_string(amnezia_wg_mgr: AmneziaWgManager, dns: str | No
         with open(tmp_client_cfg_without_dns) as f:
             data = f.read()
             assert data == res
-
-    
