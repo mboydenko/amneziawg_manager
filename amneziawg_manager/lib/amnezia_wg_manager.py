@@ -47,6 +47,7 @@ class AmneziaWgManager:
     def read_server_config(self) -> ServerConfig:
         cmd = f'cat {self.config_path}'
         res = self.cmd_executor.exec_cmd(cmd)
+        _logger.debug(f'Server config:\n{res.stdout}')
         return ServerConfig.from_str(res.stdout)
 
     @_logger.log_function()
@@ -64,6 +65,7 @@ class AmneziaWgManager:
     def read_clients_table(self) -> ClientsTable:
         cmd = f'cat {self.clients_table_path}'
         result = self.cmd_executor.exec_cmd(cmd)
+        _logger.debug(f'Clients table:\n{result.stdout}')
         return ClientsTable(json.loads(result.stdout))
 
     @_logger.log_function()
