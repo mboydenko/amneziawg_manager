@@ -235,12 +235,9 @@ class AmneziaWgManager:
         self.cmd_executor.exec_cmd(f'mkdir {tmp_dir}')
         try:
             self.cmd_executor.exec_cmd(f'umask 077 && wg genkey > {tmp_dir}/private.key')
-            private_key = self.cmd_executor.exec_cmd(f'cat {tmp_dir}/private.key').stdout
-            _logger.debug(f'Private key: {private_key}')
-            public_key = self.cmd_executor.exec_cmd(f'wg pubkey < {tmp_dir}/private.key').stdout
-            _logger.debug(f'Public key: {private_key}')
-            preshared_key = self.cmd_executor.exec_cmd('wg genpsk').stdout
-            _logger.debug(f'Preshared key: {private_key}')
+            private_key = self.cmd_executor.exec_cmd(f'cat {tmp_dir}/private.key').stdout.strip()
+            public_key = self.cmd_executor.exec_cmd(f'wg pubkey < {tmp_dir}/private.key').stdout.strip()
+            preshared_key = self.cmd_executor.exec_cmd('wg genpsk').stdout.strip()
             return (public_key, private_key, preshared_key)
         except Exception as e:
             _logger.error(str(e.__traceback__))
