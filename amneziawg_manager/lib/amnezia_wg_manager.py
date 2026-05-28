@@ -34,6 +34,7 @@ class AmneziaWgManager:
     def __init__(self, 
                  config_path: str, 
                  clients_table_path: str,
+                 preshared_key_path: str,
                  address: str,
                  restart_command: str,
                  cmd_executer: CmdExecutor):
@@ -42,6 +43,7 @@ class AmneziaWgManager:
         self.cmd_executor = cmd_executer
         self.address = address
         self.restart_command = restart_command
+        self.preshared_key_path = preshared_key_path
 
     @_logger.log_function()
     def read_server_config(self) -> ServerConfig:
@@ -237,7 +239,7 @@ class AmneziaWgManager:
             self.cmd_executor.exec_cmd(f'umask 077 && wg genkey > {tmp_dir}/private.key')
             private_key = self.cmd_executor.exec_cmd(f'cat {tmp_dir}/private.key').stdout.strip()
             public_key = self.cmd_executor.exec_cmd(f'wg pubkey < {tmp_dir}/private.key').stdout.strip()
-            preshared_key = self.cmd_executor.exec_cmd('wg genpsk').stdout.strip()
+            preshared_key = self.cmd_executor.exec_cmd(f'cat {self.preshared_key_path}').stdout.strip()
             return (public_key, private_key, preshared_key)
         except Exception as e:
             _logger.error(str(e.__traceback__))
