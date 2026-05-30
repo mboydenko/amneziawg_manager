@@ -9,16 +9,21 @@ from pytest_mock import MockerFixture
 
 from amneziawg_manager import AmneziaWgManager
 from amneziawg_manager import CmdExecutorFactory
-from amneziawg_manager.lib.models import ClientsTable, ClientsTableItem, ServerConfigPeer
+from amneziawg_manager.lib.models import ClientsTableItem, ServerConfigPeer
 
 ADDRESS = "231.123.23.1"
-CLIENT_KEYS = ('CLIENT_PUBLIC_KEY', 'CLIENT_PRIVATE_KEY', 'CLIENT_PRESHARED_KEY') 
+CLIENT_PUBLIC_KEY = 'CLIENT_PUBLIC_KEY'
+CLIENT_PRIVATE_KEY = 'CLIENT_PRIVATE_KEY'
+SERVER_PRESHARED_KEY = 'SERVER_PRESHARED_KEY'
+SERVER_PUBLIC_KEY = 'SERVER_PUBLIC_KEY'
 
 @dataclass
 class DockerContainer:
     name: str
     conf_path: str
-    client_table: str
+    clients_table_path: str
+    public_key_path: str
+    preshared_key_path: str
 
 @pytest.fixture
 def tmp_path():
@@ -52,9 +57,25 @@ def tmp_client_cfg_without_dns(tmp_path: Path):
         shutil.copyfile(Path(current_dir) / 'resources' /  'client_cfg_to_string'  / 'cfg_without_dns.conf', tmp_path / 'cfg_without_dns.conf')
         return tmp_path / 'cfg_without_dns.conf'
 
+@pytest.fixture
+def tmp_server_preshared_key_path(tmp_path: Path):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        shutil.copyfile(Path(current_dir) / 'resources' /  'server_preshared_key', tmp_path / 'server_preshared_key')
+        return tmp_path / 'server_preshared_key'
 
 @pytest.fixture
-def docker_container(request: pytest.FixtureRequest, tmp_clients_table: Path, tmp_server_conf: Path):
+def tmp_server_public_key_path(tmp_path: Path):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        shutil.copyfile(Path(current_dir) / 'resources' /  'server_public_key', tmp_path / 'server_public_key')
+        return tmp_path / 'server_public_key'
+    
+
+@pytest.fixture
+def docker_container(request: pytest.FixtureRequest, 
+                     tmp_clients_table: Path, 
+                     tmp_server_conf: Path,
+                     tmp_server_preshared_key_path: Path,
+                     tmp_server_public_key_path: Path):
     container: str | None = request.config.getoption('--docker-container')
     if not container:
         yield
@@ -76,55 +97,56 @@ def docker_container(request: pytest.FixtureRequest, tmp_clients_table: Path, tm
         check=True,
     )
 
-    clients_table_file_in_docker = '/tmp/clients_table_tmp';
-    serve_conf_file_in_docker = '/tmp/test_conf.conf';
+    try:
+        clients_table_file_in_docker = (tmp_clients_table, '/tmp/clients_table_tmp')
+        serve_conf_file_in_docker = (tmp_server_conf, '/tmp/test_conf.conf')
+        server_public_key_path_in_docker = (tmp_server_public_key_path, '/tmp/public_key')
+        server_preshared_key_path_in_docker = (tmp_server_preshared_key_path, '/tmp/preshared_key')
 
-    subprocess.run(
-        [
-            "docker",
-            "cp",
-            str(tmp_clients_table),
-            f"{container}:{clients_table_file_in_docker}",
-        ],
-        check=True,
-    )
+        for _path in [clients_table_file_in_docker, serve_conf_file_in_docker, 
+                    server_public_key_path_in_docker, server_preshared_key_path_in_docker]:
+            subprocess.run(
+                [
+                    "docker",
+                    "cp",
+                    str(_path[0]),
+                    f"{container}:{_path[1]}",
+                ],
+                check=True,
+            )
 
-    subprocess.run(
-        [
-            "docker",
-            "cp",
-            str(tmp_server_conf),
-            f"{container}:{serve_conf_file_in_docker}",
-        ],
-        check=True,
-    )
-
-    yield DockerContainer(
-        name=container,
-        conf_path=serve_conf_file_in_docker,
-        client_table=clients_table_file_in_docker
-    )
-
-    subprocess.run(
-        ["docker", "rm", "-f", container],
-        check=True,
-    )
+        yield DockerContainer(
+            name=container,
+            conf_path=serve_conf_file_in_docker[1],
+            clients_table_path=clients_table_file_in_docker[1],
+            preshared_key_path=server_preshared_key_path_in_docker[1],
+            public_key_path=server_public_key_path_in_docker[1]
+        )
+    finally:
+        subprocess.run(
+            ["docker", "rm", "-f", container],
+            check=True,
+        )
 
 @pytest.fixture
 def amnezia_wg_mgr(request: pytest.FixtureRequest,
                    mocker: MockerFixture, 
                    tmp_server_conf: Path, 
                    tmp_clients_table: Path,
+                   tmp_server_public_key_path: Path,
+                   tmp_server_preshared_key_path: Path,
                    docker_container: DockerContainer | None,
     ) -> AmneziaWgManager:
     mgr = AmneziaWgManager(
         config_path=docker_container.conf_path if docker_container else str(tmp_server_conf),
-        clients_table_path=docker_container.client_table if docker_container else str(tmp_clients_table),
+        clients_table_path=docker_container.clients_table_path if docker_container else str(tmp_clients_table),
         address=ADDRESS,
+        preshared_key_path=docker_container.preshared_key_path if docker_container else str(tmp_server_preshared_key_path),
+        public_key_path=docker_container.public_key_path if docker_container else str(tmp_server_public_key_path),
         cmd_executer=CmdExecutorFactory().create_cmd_execptor(docker_container=docker_container.name if docker_container else None),
         restart_command='echo restart'
     )
-    mocker.patch.object(mgr, AmneziaWgManager._gen_keys.__name__, return_value=CLIENT_KEYS) # type: ignore
+    mocker.patch.object(mgr, AmneziaWgManager._gen_client_keys.__name__, return_value=(CLIENT_PUBLIC_KEY, CLIENT_PRIVATE_KEY)) # type: ignore
     return mgr
 
 def test_read_server_config(amnezia_wg_mgr: AmneziaWgManager):
@@ -154,8 +176,8 @@ def test_write_server_config(amnezia_wg_mgr: AmneziaWgManager):
     config = amnezia_wg_mgr.read_server_config()
     config.interface.ListenPort = 12345
 
-    new_peer = ServerConfigPeer(PublicKey=CLIENT_KEYS[0],
-                                PresharedKey=CLIENT_KEYS[2],
+    new_peer = ServerConfigPeer(PublicKey=CLIENT_PUBLIC_KEY,
+                                PresharedKey=SERVER_PRESHARED_KEY,
                                 AllowedIPs='10.10.10.10/32')
     config.peers.append(new_peer)
     amnezia_wg_mgr.write_server_config(config)
@@ -180,8 +202,8 @@ def test_write_server_config(amnezia_wg_mgr: AmneziaWgManager):
     assert config.peers[1].PresharedKey == 'client_1_preshared_key'
     assert config.peers[1].AllowedIPs == '10.8.1.2/32'
     assert config.peers[2].AllowedIPs == '10.10.10.10/32'
-    assert config.peers[2].PresharedKey == CLIENT_KEYS[2]
-    assert config.peers[2].PublicKey == CLIENT_KEYS[0]
+    assert config.peers[2].PresharedKey == SERVER_PRESHARED_KEY
+    assert config.peers[2].PublicKey == CLIENT_PUBLIC_KEY
 
 def test_read_clients_table(amnezia_wg_mgr: AmneziaWgManager):
     clients_table = amnezia_wg_mgr.read_clients_table()
@@ -212,7 +234,7 @@ def test_write_clients_table(amnezia_wg_mgr: AmneziaWgManager):
     clients_table.root[1].data_sent = '12.20 GiB'
 
     added_user = ClientsTableItem(
-        client_id=CLIENT_KEYS[0],
+        client_id=CLIENT_PUBLIC_KEY,
         allowed_ips='10.10.10.12/32',
         client_name='added_client',
         creation_date='Creation date text',
@@ -243,7 +265,7 @@ def test_write_clients_table(amnezia_wg_mgr: AmneziaWgManager):
     assert clients_table.root[1].data_sent == '12.20 GiB'
     assert clients_table.root[1].latest_handshake == '1m, 59s ago'
 
-    assert clients_table.root[2].client_id == CLIENT_KEYS[0]
+    assert clients_table.root[2].client_id == CLIENT_PUBLIC_KEY
     assert clients_table.root[2].allowed_ips == '10.10.10.12/32'
     assert clients_table.root[2].client_name == 'added_client'
     assert clients_table.root[2].creation_date == 'Creation date text'
@@ -271,12 +293,12 @@ def test_add_client(amnezia_wg_mgr: AmneziaWgManager):
         assert client_config.interface.H2 == 7
         assert client_config.interface.H3 == 8
         assert client_config.interface.H4 == 9
-        assert client_config.interface.PrivateKey == CLIENT_KEYS[1]
+        assert client_config.interface.PrivateKey == CLIENT_PRIVATE_KEY
         assert client_config.interface.DNS == dns
 
-        assert client_config.peer.PublicKey == CLIENT_KEYS[0]
+        assert client_config.peer.PublicKey == SERVER_PUBLIC_KEY
         assert client_config.peer.AllowedIPs == '0.0.0.0/0, ::/0'
-        assert client_config.peer.PresharedKey == CLIENT_KEYS[2]
+        assert client_config.peer.PresharedKey == SERVER_PRESHARED_KEY
         assert client_config.peer.PersistentKeepalive == presented_keep_alive
         assert client_config.peer.Endpoint == f"{amnezia_wg_mgr.address}:{server_config.interface.ListenPort}"
 
@@ -291,10 +313,10 @@ def test_add_client(amnezia_wg_mgr: AmneziaWgManager):
         client_name, dns, presented_keep_alive, expected_address = new_clients[i][0], new_clients[i][1], new_clients[i][2], new_clients[i][3]
         
         assert server_config.peers[index].AllowedIPs == expected_address
-        assert server_config.peers[index].PublicKey == CLIENT_KEYS[0]
-        assert server_config.peers[index].PresharedKey == CLIENT_KEYS[2]
+        assert server_config.peers[index].PublicKey == CLIENT_PUBLIC_KEY
+        assert server_config.peers[index].PresharedKey == SERVER_PRESHARED_KEY
 
-        assert clients_table.root[index].client_id == CLIENT_KEYS[0]
+        assert clients_table.root[index].client_id == CLIENT_PUBLIC_KEY
         assert clients_table.root[index].allowed_ips == expected_address
         assert clients_table.root[index].client_name == client_name
 

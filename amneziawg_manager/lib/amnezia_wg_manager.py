@@ -34,6 +34,7 @@ class AmneziaWgManager:
     def __init__(self, 
                  config_path: str, 
                  clients_table_path: str,
+                 public_key_path: str,
                  preshared_key_path: str,
                  address: str,
                  restart_command: str,
@@ -44,6 +45,7 @@ class AmneziaWgManager:
         self.address = address
         self.restart_command = restart_command
         self.preshared_key_path = preshared_key_path
+        self.public_key_path = public_key_path
 
     @_logger.log_function()
     def read_server_config(self) -> ServerConfig:
@@ -92,18 +94,21 @@ class AmneziaWgManager:
         server_config = self.read_server_config()
         server_address = f"{self.address}:{server_config.interface.ListenPort}"
         client_address = server_config.get_next_client_ip() + '/32'
-        pub_key, private_key, presh_key = self._gen_keys()
+        client_public_key, client_private_key = self._gen_client_keys()
+        server_presh_key = self._get_server_preshared_key()
+        server_public_key = self._get_server_public_key()
+
         client_peer = ClientConfigPeer(
             AllowedIPs=allowed_ips,
             Endpoint=server_address,
             PersistentKeepalive=presented_keep_alive,
-            PresharedKey=presh_key,
-            PublicKey=pub_key
+            PresharedKey=server_presh_key,
+            PublicKey=server_public_key
         )
         client_interface = ClientInterface(
             Address=client_address,
             DNS=dns,
-            PrivateKey=private_key,
+            PrivateKey=client_private_key,
             Jc=server_config.interface.Jc,
             Jmin=server_config.interface.Jmin,
             Jmax=server_config.interface.Jmax,
@@ -118,10 +123,11 @@ class AmneziaWgManager:
             interface=client_interface,
             peer=client_peer
         )
+
         clients_table = self.read_clients_table()
         creation_date = datetime.now()
         clients_table_item = ClientsTableItem(
-            client_id=client_config.peer.PublicKey,
+            client_id=client_public_key,
             allowed_ips=client_config.interface.Address,
             client_name=client_name,
             data_received="",
@@ -135,15 +141,17 @@ class AmneziaWgManager:
                 creation_date.year
             )
         )
+
         server_confg_peer = ServerConfigPeer(
-            PublicKey=pub_key,
-            PresharedKey=presh_key,
+            PublicKey=client_public_key,
+            PresharedKey=server_presh_key,
             AllowedIPs=client_address
         )
         clients_table.root.append(clients_table_item)
         server_config.peers.append(server_confg_peer)
         self.write_server_config(config=server_config)
         self.write_clients_table(clients_table=clients_table)
+
         self.restart_server()
         return client_config
 
@@ -229,7 +237,7 @@ class AmneziaWgManager:
         return None
 
     @_logger.log_function()
-    def _gen_keys(self) -> tuple[str,str,str]:
+    def _gen_client_keys(self) -> tuple[str,str]:
         """
         Return tuple: public, privet, preshared 
         """
@@ -239,10 +247,17 @@ class AmneziaWgManager:
             self.cmd_executor.exec_cmd(f'umask 077 && wg genkey > {tmp_dir}/private.key')
             private_key = self.cmd_executor.exec_cmd(f'cat {tmp_dir}/private.key').stdout.strip()
             public_key = self.cmd_executor.exec_cmd(f'wg pubkey < {tmp_dir}/private.key').stdout.strip()
-            preshared_key = self.cmd_executor.exec_cmd(f'cat {self.preshared_key_path}').stdout.strip()
-            return (public_key, private_key, preshared_key)
+            return (public_key, private_key)
         except Exception as e:
             _logger.error(str(e.__traceback__))
             raise e
         finally:
             self.cmd_executor.exec_cmd(f'rm -r {tmp_dir}')
+
+    @_logger.log_function()
+    def _get_server_public_key(self):
+        return self.cmd_executor.exec_cmd(cmd=f'cat {self.public_key_path}').stdout.strip()
+
+    @_logger.log_function()
+    def _get_server_preshared_key(self):
+        return self.cmd_executor.exec_cmd(cmd=f'cat {self.preshared_key_path}').stdout.strip()
