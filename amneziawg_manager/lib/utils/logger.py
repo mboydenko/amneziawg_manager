@@ -1,6 +1,8 @@
 import functools
 
-from loguru import logger
+from logging import Logger
+
+logger = Logger('main')
 
 def _deb(log: str):
     logger.debug(log)
@@ -18,7 +20,7 @@ def _warning(log: str):
     logger.warning(log)
 
 def _critical(log: str):
-    logger.critical(log)
+    logger.error(log)
 
 def _log(log: str, level: str):
     if level == 'debug':
